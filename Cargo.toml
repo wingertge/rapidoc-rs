@@ -1,0 +1,24 @@
+[package]
+name = "rapidocr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ort = { version = "2.0.0-rc.3", features = ["ndarray", "download-binaries", "load-dynamic"] }
+log = "0.4"
+nalgebra = "0.33"
+image = "0.25"
+imageproc = "0.25"
+ndarray = "0.15"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+pretty_env_logger = "*"
+geo = "0.28"
+geo-clipper = "0.8"
+tracing = "0.1"
+float-ord = "0.3"
+
+[profile.release]
+debug = true
+
+[features]
+debug = []

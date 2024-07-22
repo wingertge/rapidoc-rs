@@ -1,0 +1,6 @@
+/target
+*.png
+part_images
+models
+lib
+.cargo
