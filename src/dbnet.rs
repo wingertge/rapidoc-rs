@@ -9,14 +9,14 @@ use imageproc::{
     morphology::dilate_mut,
 };
 use ndarray::{ArrayView2, Axis};
-use ort::{inputs, GraphOptimizationLevel, Session};
+use ort::{inputs, ExecutionProviderDispatch, GraphOptimizationLevel, Session};
 use tracing::instrument;
 
 use crate::{
     util::{
         self, box_score_fast, max_side, subtract_mean_normalize, to_geo_poly, to_luma_image, unclip,
     },
-    TextBox,
+    ExecutionProvider, TextBox,
 };
 
 const MEAN_VALUES: [f32; 3] = [0.485, 0.456, 0.406];
@@ -26,14 +26,81 @@ pub struct DbNet {
     session: Session,
 }
 
+#[cfg(feature = "tensorrt")]
+fn setup_tensorrt(cache_path: PathBuf, max_side_len: u32) -> ExecutionProviderDispatch {
+    use ort::TensorRTExecutionProvider;
+
+    TensorRTExecutionProvider::default()
+        .with_profile_min_shapes("x:1x3x32x32")
+        .with_profile_max_shapes(format!("x:1x3x{max_side_len}x{max_side_len}"))
+        .with_profile_opt_shapes(format!("x:1x3x{max_side_len}x{max_side_len}"))
+        .with_engine_cache(true)
+        .with_engine_cache_path(cache_path.to_string_lossy())
+        .with_timing_cache(true)
+        .with_builder_optimization_level(5)
+        .with_detailed_build_log(true)
+        .build()
+}
+
+#[cfg(feature = "cuda")]
+fn setup_cuda() -> ExecutionProviderDispatch {
+    use ort::CUDAExecutionProvider;
+
+    CUDAExecutionProvider::default().build()
+}
+
+#[cfg(feature = "directml")]
+fn setup_directml() -> ExecutionProviderDispatch {
+    use ort::DirectMLExecutionProvider;
+
+    DirectMLExecutionProvider::default().build()
+}
+
 impl DbNet {
     #[instrument(level = "debug")]
-    pub fn init(path: PathBuf, num_threads: usize) -> ort::Result<Self> {
+    pub fn init(
+        path: PathBuf,
+        num_threads: usize,
+        max_side_len: u32,
+        execution_providers: &[ExecutionProvider],
+        cache_path: Option<PathBuf>,
+    ) -> ort::Result<Self> {
+        #[cfg(feature = "directml")]
+        let parallel = execution_providers.contains(&ExecutionProvider::DirectML);
+        #[cfg(not(feature = "directml"))]
+        let parallel = true;
+
+        let execution_providers = execution_providers.iter().filter_map(
+            |provider| -> Option<ExecutionProviderDispatch> {
+                match provider {
+                    ExecutionProvider::Default => None,
+                    #[cfg(feature = "tensorrt")]
+                    ExecutionProvider::TensorRT => Some(setup_tensorrt(
+                        cache_path
+                            .clone()
+                            .unwrap_or_else(|| path.parent().unwrap().join(".cache")),
+                        max_side_len,
+                    )),
+                    #[cfg(feature = "cuda")]
+                    ExecutionProvider::Cuda => Some(setup_cuda()),
+                    #[cfg(feature = "directml")]
+                    ExecutionProvider::DirectML => Some(setup_directml()),
+                }
+            },
+        );
+
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
-            .with_parallel_execution(true)?
+            .with_memory_pattern(parallel)?
+            .with_parallel_execution(parallel)?
             .with_inter_threads(num_threads)?
             .with_intra_threads(num_threads)?
+            .with_execution_providers(execution_providers)?
+            /*             .with_optimized_model_path(
+                cache_path
+                    .unwrap_or(path.parent().unwrap().join(".cache"))
+                    .to_string_lossy(),
+            )? */
             .commit_from_file(path)?;
 
         Ok(Self { session })

@@ -10,8 +10,6 @@ nalgebra = "0.33"
 image = "0.25"
 imageproc = "0.25"
 ndarray = "0.15"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-pretty_env_logger = "*"
 geo = "0.28"
 geo-clipper = "0.8"
 tracing = "0.1"
@@ -22,3 +20,6 @@ debug = true
 
 [features]
 debug = []
+tensorrt = ["ort/tensorrt"]
+cuda = ["ort/cuda"]
+directml = ["ort/directml"]

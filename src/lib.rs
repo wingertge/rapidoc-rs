@@ -23,7 +23,10 @@ pub struct RapidOCRBuilder {
     det_path: Option<PathBuf>,
     cls_path: Option<PathBuf>,
     rec_paths: Option<(PathBuf, PathBuf)>,
+    max_side_len: u32,
     most_angle: bool,
+    cache_path: Option<PathBuf>,
+    execution_providers: Vec<ExecutionProvider>,
 }
 
 impl RapidOCRBuilder {
@@ -65,6 +68,24 @@ impl RapidOCRBuilder {
         self
     }
 
+    pub fn max_side_len(mut self, max_side_len: u32) -> Self {
+        self.max_side_len = max_side_len;
+        self
+    }
+
+    pub fn with_engine_cache_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.cache_path = Some(path.into());
+        self
+    }
+
+    pub fn with_execution_providers(
+        mut self,
+        providers: impl IntoIterator<Item = ExecutionProvider>,
+    ) -> Self {
+        self.execution_providers = providers.into_iter().collect();
+        self
+    }
+
     #[instrument(skip(self), level = "debug")]
     fn init_models(&mut self) -> ort::Result<(DbNet, Option<AngleNet>, CrnnNet)> {
         let det_path = self
@@ -79,11 +100,24 @@ impl RapidOCRBuilder {
             )
         });
         Ok((
-            DbNet::init(det_path, self.threads)?,
+            DbNet::init(
+                det_path,
+                self.threads,
+                self.max_side_len,
+                &self.execution_providers,
+                self.cache_path.clone(),
+            )?,
             cls_path
                 .map(|cls_path| AngleNet::init(cls_path, self.threads))
                 .transpose()?,
-            CrnnNet::init(rec_path, keys_path, self.threads)?,
+            CrnnNet::init(
+                rec_path,
+                keys_path,
+                self.threads,
+                self.max_side_len,
+                &self.execution_providers,
+                self.cache_path.clone(),
+            )?,
         ))
     }
 
@@ -94,6 +128,7 @@ impl RapidOCRBuilder {
             det_model,
             cls_model,
             rec_model,
+            max_side_len: self.max_side_len,
             most_angle: self.most_angle,
         })
     }
@@ -107,7 +142,10 @@ impl Default for RapidOCRBuilder {
             det_path: None,
             cls_path: None,
             rec_paths: None,
+            max_side_len: 1024,
             most_angle: false,
+            cache_path: None,
+            execution_providers: DEFAULT_PROVIDERS.to_vec(),
         }
     }
 }
@@ -116,6 +154,7 @@ pub struct RapidOCR {
     det_model: DbNet,
     cls_model: Option<AngleNet>,
     rec_model: CrnnNet,
+    max_side_len: u32,
     most_angle: bool,
 }
 
@@ -133,6 +172,11 @@ impl RapidOCR {
             unclip_ratio,
             ..
         } = options;
+        let max_side_len = if max_side_len != 0 {
+            max_side_len.min(max_side_len)
+        } else {
+            self.max_side_len
+        };
         let scale = if max_side_len > 0 {
             scale_normalized(image, options.max_side_len)
         } else {
@@ -187,7 +231,7 @@ impl Default for DetectionOptions {
     fn default() -> Self {
         Self {
             padding: 50,
-            max_side_len: 1024,
+            max_side_len: 0,
             box_score_threshold: 0.5,
             box_threshold: 0.3,
             unclip_ratio: 1.6,
@@ -195,3 +239,24 @@ impl Default for DetectionOptions {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutionProvider {
+    Default,
+    #[cfg(feature = "tensorrt")]
+    TensorRT,
+    #[cfg(feature = "cuda")]
+    Cuda,
+    #[cfg(feature = "directml")]
+    DirectML,
+}
+
+const DEFAULT_PROVIDERS: &[ExecutionProvider] = &[
+    #[cfg(feature = "tensorrt")]
+    ExecutionProvider::TensorRT,
+    #[cfg(feature = "directml")]
+    ExecutionProvider::DirectML,
+    #[cfg(feature = "cuda")]
+    ExecutionProvider::Cuda,
+    ExecutionProvider::Default,
+];
