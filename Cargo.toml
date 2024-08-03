@@ -1,25 +1,28 @@
 [package]
+edition = "2021"
 name = "rapidocr"
 version = "0.1.0"
-edition = "2021"
 
 [dependencies]
-ort = { version = "2.0.0-rc.3", features = ["ndarray", "download-binaries", "load-dynamic"] }
-log = "0.4"
-nalgebra = "0.33"
-image = "0.25"
-imageproc = "0.25"
-ndarray = "0.15"
+float-ord = "0.3"
 geo = "0.28"
 geo-clipper = "0.8"
+image = "0.25"
+imageproc = "0.25"
+log = "0.4"
+nalgebra = "0.33"
+ndarray = "0.15"
+ort = { version = "2.0.0-rc.3", default-features = false, features = [
+    "ndarray",
+    "load-dynamic",
+] }
 tracing = "0.1"
-float-ord = "0.3"
 
 [profile.release]
 debug = true
 
 [features]
-debug = []
-tensorrt = ["ort/tensorrt"]
 cuda = ["ort/cuda"]
+debug = []
 directml = ["ort/directml"]
+tensorrt = ["ort/tensorrt"]
