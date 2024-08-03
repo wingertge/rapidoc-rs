@@ -46,6 +46,13 @@ fn setup_directml() -> ExecutionProviderDispatch {
     DirectMLExecutionProvider::default().build()
 }
 
+#[cfg(feature = "coreml")]
+fn setup_coreml() -> ExecutionProviderDispatch {
+    use ort::CoreMLExecutionProvider;
+
+    CoreMLExecutionProvider::default().build()
+}
+
 impl CrnnNet {
     #[instrument(level = "debug")]
     pub fn init(
@@ -75,6 +82,8 @@ impl CrnnNet {
                     ExecutionProvider::Cuda => Some(setup_cuda()),
                     #[cfg(feature = "directml")]
                     ExecutionProvider::DirectML => Some(setup_directml()),
+                    #[cfg(feature = "coreml")]
+                    ExecutionProvider::CoreML => Some(setup_coreml()),
                 }
             },
         );

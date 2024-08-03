@@ -245,6 +245,8 @@ pub enum ExecutionProvider {
     Default,
     #[cfg(feature = "tensorrt")]
     TensorRT,
+    #[cfg(feature = "coreml")]
+    CoreML,
     #[cfg(feature = "cuda")]
     Cuda,
     #[cfg(feature = "directml")]
@@ -254,6 +256,8 @@ pub enum ExecutionProvider {
 const DEFAULT_PROVIDERS: &[ExecutionProvider] = &[
     #[cfg(feature = "tensorrt")]
     ExecutionProvider::TensorRT,
+    #[cfg(feature = "coreml")]
+    ExecutionProvider::CoreML,
     #[cfg(feature = "directml")]
     ExecutionProvider::DirectML,
     #[cfg(feature = "cuda")]
