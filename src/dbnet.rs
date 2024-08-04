@@ -73,7 +73,7 @@ impl DbNet {
         cache_path: Option<PathBuf>,
     ) -> ort::Result<Self> {
         #[cfg(feature = "directml")]
-        let parallel = execution_providers.contains(&ExecutionProvider::DirectML);
+        let parallel = !execution_providers.contains(&ExecutionProvider::DirectML);
         #[cfg(not(feature = "directml"))]
         let parallel = true;
 
@@ -129,7 +129,7 @@ impl DbNet {
         let input_values =
             subtract_mean_normalize(&image, &MEAN_VALUES, &NORM_VALUES).insert_axis(Axis(0));
         //let input_values = Array4::<f32>::zeros((1, 3, 256, 256));
-        let inputs = inputs!["x" => input_values]?;
+        let inputs = inputs![input_values]?;
         let outputs = self.session.run(inputs)?;
         let pred_mat = outputs
             .first_key_value()
