@@ -178,7 +178,7 @@ impl RapidOCR {
             self.max_side_len
         };
         let scale = if max_side_len > 0 {
-            scale_normalized(image, options.max_side_len)
+            scale_normalized(image, max_side_len)
         } else {
             scale_normalized(image, u32::MAX)
         };
